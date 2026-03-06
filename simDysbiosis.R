@@ -348,6 +348,7 @@ if(rounds > 1){
                      rep("IBD", length(ibd.pep))),
                    levels = c("Healthy", "IBD"))
   )
+  p.val <- wilcox.test(na.omit(healthy.pep),na.omit(ibd.pep))$p.value 
   g.pep<-ggplot(box.df, aes(x = Group, y = PEP, fill = Group)) +
     geom_violin(alpha = 0.4, trim = FALSE) +
     geom_jitter(aes(color = Group), width = 0.15, size = 1.5, alpha = 0.6) +
@@ -417,6 +418,7 @@ if(rounds > 1){
   plot(gout)
   
   # diagnostic plots for data properties
+  p.val <- wilcox.test(na.omit(healthy.betadiv),na.omit(ibd.betadiv))$p.value 
   box.df <- data.frame(
     BC = c(healthy.betadiv, ibd.betadiv),
     Group = factor(c(rep("Healthy", length(healthy.betadiv)),
@@ -438,6 +440,7 @@ if(rounds > 1){
     theme(legend.position = "none")
   plot(g.bc)
   
+  p.val <- wilcox.test(na.omit(healthy.sheldon),na.omit(ibd.sheldon))$p.value 
   box.df <- data.frame(
     Sheldon = c(healthy.sheldon, ibd.sheldon),
     Group = factor(c(rep("Healthy", length(healthy.sheldon)),
