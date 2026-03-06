@@ -1,1 +1,5 @@
+Simulation result for BEEM-Static
 
+Result for 20 data sets generated with settings below and BEEM-Static as network inference. 
+
+A global pool of 30 taxa was simulated, of which 6 were treated as bloomers. 20 taxa were randomly drawn in 50 samples. In dysbiotic (IBD) samples, a randomly selected subset of the bloomers was boosted by a factor of 4, and growth rates of other taxa were multiplied by a factor of 0.1. The pre-defined positive edge percentage of the interaction matrix was set to 20. A prevalence filter of 20 was applied, and data were rarefied to the same counts before network inference. 
