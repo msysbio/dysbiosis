@@ -203,6 +203,18 @@ for(round in 1:rounds){
   
   # compute data properties
   
+  # deal with gLV simulation failures: remove columns with missing values
+  naColumns.healthy=which(colSums(is.na(healthyMatrix)) > 0)
+  if(length(naColumns.healthy)>0){
+    print(paste("Discarding ",length(naColumns.healthy),"with missing values."))
+    healthyMatrix=healthyMatrix[,setdiff(1:ncol(healthyMatrix),naColumns.healthy)]
+  }
+  naColumns.ibd=which(colSums(is.na(ibdMatrix)) > 0)
+  if(length(naColumns.ibd)>0){
+    print(paste("Discarding ",length(naColumns.ibd),"with missing values."))
+    ibdMatrix=ibdMatrix[,setdiff(1:ncol(ibdMatrix),naColumns.ibd)]
+  }
+  
   # set small negative values introduced by simulation to zero
   healthyMatrix[healthyMatrix<0]=0
   ibdMatrix[ibdMatrix<0]=0
@@ -393,5 +405,5 @@ if(rounds > 1){
   p <- wilcox.test(na.omit(healthy.sheldon),na.omit(ibd.sheldon))$p.value # ties
   mtext(paste0("p = ", formatC(p, format="e", digits=1)), side=3, line=-1, cex=0.8)
   
-  boxplot(list(Healthy = healthy.mediantotalcount, IBD = ibd.mediantotalcount), col = c("#0078B9", "#EA0017"),main="Total abundance in simulated data",ylab="Abundance")
+  boxplot(list(Healthy = healthy.mediantotalcount, IBD = ibd.mediantotalcount), col = c("#0078B9", "#EA0017"),main="Total abundance in simulated data after rarefaction",ylab="Abundance")
 }
