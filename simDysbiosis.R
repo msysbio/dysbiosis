@@ -342,9 +342,26 @@ print(ibd.pep)
 
 if(rounds > 1){
   # PEP difference
-  boxplot(list(Healthy = healthy.pep, IBD = ibd.pep), col = c("#0078B9", "#EA0017"),main="Positive edge percentage in simulated data",ylab="Positive edge percentage")
-  p <- wilcox.test(na.omit(healthy.pep),na.omit(ibd.pep))$p.value # ties
-  mtext(paste0("p = ", formatC(p, format="e", digits=1)), side=3, line=-1, cex=0.8)
+  box.df <- data.frame(
+    PEP = c(healthy.pep, ibd.pep),
+    Group = factor(c(rep("Healthy", length(healthy.pep)),
+                     rep("IBD", length(ibd.pep))),
+                   levels = c("Healthy", "IBD"))
+  )
+  g.pep<-ggplot(box.df, aes(x = Group, y = PEP, fill = Group)) +
+    geom_violin(alpha = 0.4, trim = FALSE) +
+    geom_jitter(aes(color = Group), width = 0.15, size = 1.5, alpha = 0.6) +
+    scale_fill_manual(values = c("Healthy" = "#0078B9", "IBD" = "#EA0017")) +
+    scale_color_manual(values = c("Healthy" = "#0078B9", "IBD" = "#EA0017")) +
+    annotate("text",
+             x = 1.5, y = max(box.df$PEP, na.rm = TRUE),
+             label = paste0("p = ", formatC(p.val, format = "e", digits = 1)),
+             size = 4, vjust = -0.5) +
+    labs(title = "Positive edge percentage in simulated data",
+         y = "Positive edge percentage", x = NULL) +
+    theme_minimal() +
+    theme(legend.position = "none")
+  plot(g.pep)
   
   # Correlation of PEP to evenness
   healthy.res=cbind(healthy.sheldon,healthy.pep,rep("healthy",length(healthy.pep)))
@@ -378,6 +395,9 @@ if(rounds > 1){
     geom_smooth(aes(x = Sheldon, y = PEP), method = "lm",
                 se = TRUE, inherit.aes = FALSE,
                 color = "black", linetype = "dashed") +
+    scale_color_manual(values = c("healthy" = "#0078B9", "IBD" = "#EA0017")) +
+    scale_fill_manual(values = c("healthy" = "#0078B9", "IBD" = "#EA0017")) +
+    ggtitle("Evenness versus positive edge percentage")+
     geom_text(
       data = stats.df,
       aes(label = label, color = Group),
@@ -397,13 +417,51 @@ if(rounds > 1){
   plot(gout)
   
   # diagnostic plots for data properties
-  boxplot(list(Healthy = healthy.betadiv, IBD = ibd.betadiv), col = c("#0078B9", "#EA0017"),main="Beta diversity in simulated data",ylab="Mean Bray Curtis")
-  p <- wilcox.test(na.omit(healthy.betadiv),na.omit(ibd.betadiv))$p.value # ties
-  mtext(paste0("p = ", formatC(p, format="e", digits=1)), side=3, line=-1, cex=0.8)
+  box.df <- data.frame(
+    BC = c(healthy.betadiv, ibd.betadiv),
+    Group = factor(c(rep("Healthy", length(healthy.betadiv)),
+                     rep("IBD", length(ibd.betadiv))),
+                   levels = c("Healthy", "IBD"))
+  )
+  g.bc<-ggplot(box.df, aes(x = Group, y = BC, fill = Group)) +
+    geom_violin(alpha = 0.4, trim = FALSE) +
+    geom_jitter(aes(color = Group), width = 0.15, size = 1.5, alpha = 0.6) +
+    scale_fill_manual(values = c("Healthy" = "#0078B9", "IBD" = "#EA0017")) +
+    scale_color_manual(values = c("Healthy" = "#0078B9", "IBD" = "#EA0017")) +
+    annotate("text",
+             x = 1.5, y = max(box.df$BC, na.rm = TRUE),
+             label = paste0("p = ", formatC(p.val, format = "e", digits = 1)),
+             size = 4, vjust = -0.5) +
+    labs(title = "Beta diversity in simulated data",
+         y = "Mean Bray Curtis", x = NULL) +
+    theme_minimal() +
+    theme(legend.position = "none")
+  plot(g.bc)
   
-  boxplot(list(Healthy = healthy.sheldon, IBD = ibd.sheldon), col = c("#0078B9", "#EA0017"),main="Evenness in simulated data",ylab="Sheldon")
-  p <- wilcox.test(na.omit(healthy.sheldon),na.omit(ibd.sheldon))$p.value # ties
-  mtext(paste0("p = ", formatC(p, format="e", digits=1)), side=3, line=-1, cex=0.8)
+  box.df <- data.frame(
+    Sheldon = c(healthy.sheldon, ibd.sheldon),
+    Group = factor(c(rep("Healthy", length(healthy.sheldon)),
+                     rep("IBD", length(ibd.sheldon))),
+                   levels = c("Healthy", "IBD"))
+  )
+  g.sheldon<-ggplot(box.df, aes(x = Group, y = Sheldon, fill = Group)) +
+    geom_violin(alpha = 0.4, trim = FALSE) +
+    geom_jitter(aes(color = Group), width = 0.15, size = 1.5, alpha = 0.6) +
+    scale_fill_manual(values = c("Healthy" = "#0078B9", "IBD" = "#EA0017")) +
+    scale_color_manual(values = c("Healthy" = "#0078B9", "IBD" = "#EA0017")) +
+    annotate("text",
+             x = 1.5, y = max(box.df$Sheldon, na.rm = TRUE),
+             label = paste0("p = ", formatC(p.val, format = "e", digits = 1)),
+             size = 4, vjust = -0.5) +
+    labs(title = "Evenness in simulated data",
+         y = "Sheldon evenness", x = NULL) +
+    theme_minimal() +
+    theme(legend.position = "none")
+  plot(g.sheldon)
+  
+  # library(patchwork)
+  # combined <- (g.pep + gout) / (g.sheldon + g.bc) 
+  # ggsave("combined.pdf",combined,wdith=12,height=10)
   
   boxplot(list(Healthy = healthy.mediantotalcount, IBD = ibd.mediantotalcount), col = c("#0078B9", "#EA0017"),main="Total abundance in simulated data after rarefaction",ylab="Abundance")
 }
