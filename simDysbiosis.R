@@ -26,8 +26,8 @@ numSubtaxa=20 # the number of taxa ending up in sub-communities; should be <= nu
 samples=50 # number of samples in healthy and IBD matrix
 pep=20 # pre-defined PEP in global interaction matrix; do not choose too high to avoid explosions in gLV simulations (20 or below)
 minocc=10 # only keep rows with at least the given number of non-zero values for network inference; applied after rarefaction and after evenness and beta diversity are computed; CoNet and BEEM require a prevalence filter: 5 for CoNet is enough, BEEM needs a much more stringent one, e.g. 20
-method="mb" # network inference method (beem, mb, glasso, pearson/spearman/bray/kld and others, see details in buildNetwork in seqgroup), mb and glasso are provided by SpiecEasi
-rounds=20 # data generation rounds with different global interaction matrices
+method="mb" # network inference method (beem, limits, mb, glasso, pearson/spearman/bray/kld and others, see details in buildNetwork in seqgroup), mb and glasso are provided by SpiecEasi
+rounds=10 # data generation rounds with different global interaction matrices
 testmode=FALSE # do not re-generate A 
 
 # Functions
@@ -108,6 +108,52 @@ prevalenceFilter<-function(x, minocc=0, keepSum=TRUE){
     x=x[indices.tokeep,]
   }
   return(x)
+}
+
+# Network inference, wrapping beem, buildNetwork (which supports SpiecEasi and CoNet) and limits.
+# Returns result with entries "pep" and "edgeNum". For beem and limits, edgeNum reports arc number 
+# instead of edge number, i.e. the non-zero entries in the inferred interaction matrix without the diagonal.
+buildNetworkWrapper<-function(matrix, method="mb", lineages){
+  N=nrow(matrix)
+  edgeNum=NA
+  numNeg=NA
+  if(length(method)==1 && method=="beem"){
+    beemOK=TRUE
+    res <- tryCatch(
+      func.EM(matrix),
+      error = function(e) {
+        beemOK<<-FALSE
+        message("BEEM failed: ", conditionMessage(e))
+        return(NULL)
+      }
+    )
+    if(beemOK){
+      est <- beem2param(res)
+      pep.inferred=getPep(est$b.est)
+      # non-zero entries in the upper and lower triangle (skipping diagonal) 
+      values=est$b.est[upper.tri(est$b.est)]
+      values=c(values,est$b.est[lower.tri(est$b.est)])
+      edgeNum=(length(which(values!=0)))
+    }else{
+      pep.inferred=NA
+    }
+  }else if(length(method)==1 && method=="limits"){
+    out=limits(matrix) # takes a minute or so
+    pep.inferred=getPep(out$Aest) 
+    # non-zero entries in the upper and lower triangle (skipping diagonal) 
+    values=out$Aest[upper.tri(out$Aest)]
+    values=c(values,out$Aest[lower.tri(out$Aest)])
+    edgeNum=(length(which(values!=0)))
+  }else{
+    network=buildNetwork(matrix,method=method,lineages=lineages,initEdgeNum = N*(N-1)/4, legend=FALSE)
+    edgeNum=length(E(network))
+    numNeg=length(which(E(network)$color=="red"))
+    numPos=edgeNum-numNeg
+    pep.inferred=numPos/(edgeNum/100)
+  }
+  print(paste("Network has PEP",pep.inferred,",",numNeg," negative edges"," and ",edgeNum,"total edges"))
+  res=list("pep"=pep.inferred,"edgeNum"=edgeNum)
+  return(res) 
 }
 
 
@@ -203,18 +249,6 @@ for(round in 1:rounds){
   
   # compute data properties
   
-  # deal with gLV simulation failures: remove columns with missing values
-  naColumns.healthy=which(colSums(is.na(healthyMatrix)) > 0)
-  if(length(naColumns.healthy)>0){
-    print(paste("Discarding ",length(naColumns.healthy),"with missing values."))
-    healthyMatrix=healthyMatrix[,setdiff(1:ncol(healthyMatrix),naColumns.healthy)]
-  }
-  naColumns.ibd=which(colSums(is.na(ibdMatrix)) > 0)
-  if(length(naColumns.ibd)>0){
-    print(paste("Discarding ",length(naColumns.ibd),"with missing values."))
-    ibdMatrix=ibdMatrix[,setdiff(1:ncol(ibdMatrix),naColumns.ibd)]
-  }
-  
   # set small negative values introduced by simulation to zero
   healthyMatrix[healthyMatrix<0]=0
   ibdMatrix[ibdMatrix<0]=0
@@ -234,6 +268,22 @@ for(round in 1:rounds){
   print(paste("Zero-sum taxon number after rarefaction in IBD: ",length(which(rowSums(ibdMatrix)==0))))
   healthy.mediantotalcount=c(healthy.mediantotalcount,median(colSums(healthyMatrix)))
   ibd.mediantotalcount=c(ibd.mediantotalcount,median(colSums(ibdMatrix)))
+  
+  # deal with gLV simulation failures: remove columns with missing values
+  naColumns.healthy=which(colSums(is.na(healthyMatrix)) > 0)
+  print("NA in healthy matrix?")
+  print(naColumns.healthy)
+  if(length(naColumns.healthy)>0){
+    print(paste("Discarding ",length(naColumns.healthy),"columns with missing values."))
+    healthyMatrix=healthyMatrix[,setdiff(1:ncol(healthyMatrix),naColumns.healthy)]
+  }
+  naColumns.ibd=which(colSums(is.na(ibdMatrix)) > 0)
+  print("NA in IBD matrix?")
+  print(naColumns.ibd)
+  if(length(naColumns.ibd)>0){
+    print(paste("Discarding ",length(naColumns.ibd),"columns with missing values."))
+    ibdMatrix=ibdMatrix[,setdiff(1:ncol(ibdMatrix),naColumns.ibd)]
+  }
   
   # compute evenness
   healthy.values=apply(healthyMatrix,2,sheldon)
@@ -270,65 +320,15 @@ for(round in 1:rounds){
   rownames(healthyMatrix)=rownames(ibd_lineages)[1:nrow(healthyMatrix)]
   rownames(ibdMatrix)=rownames(ibd_lineages)[1:nrow(ibdMatrix)]
   
-  N=nrow(healthyMatrix)
-  if(method=="beem"){
-    beemOK=TRUE
-    res <- tryCatch(
-      func.EM(healthyMatrix),
-      error = function(e) {
-        beemOK<<-FALSE
-        message("BEEM failed: ", conditionMessage(e))
-        return(NULL)
-      }
-    )
-    if(beemOK){
-      est <- beem2param(res)
-      pep.healthy=getPep(est$b.est)
-    }else{
-      pep.healthy=NA
-    }
-    edgeNum=NA
-    numNeg=NA
-  }else{
-    healthyNetwork=buildNetwork(healthyMatrix,method=method,lineages=ibd_lineages[1:nrow(healthyMatrix),],initEdgeNum = N*(N-1)/4, legend=FALSE)
-    edgeNum=length(E(healthyNetwork))
-    numNeg=length(which(E(healthyNetwork)$color=="red"))
-    numPos=edgeNum-numNeg
-    pep.healthy=numPos/(edgeNum/100)
-  }
-  print(paste("Healthy network has PEP",pep.healthy,",",numNeg," negative edges"," and ",edgeNum,"total edges"))
-  healthy.edgenum=c(healthy.edgenum,edgeNum)
-  healthy.pep=c(healthy.pep,pep.healthy)
+  print("Healthy network inference")
+  res.healthy=buildNetworkWrapper(matrix=healthyMatrix,method=method,lineages=ibd_lineages[1:nrow(healthyMatrix),])
+  healthy.edgenum=c(healthy.edgenum,res.healthy$edgeNum)
+  healthy.pep=c(healthy.pep,res.healthy$pep)
   
-  N=nrow(ibdMatrix)
-  if(method=="beem"){
-    beemOK=TRUE
-    res <- tryCatch(
-      func.EM(ibdMatrix),
-      error = function(e) {
-        beemOK<<-FALSE
-        message("BEEM failed: ", conditionMessage(e))
-        return(NULL)
-      }
-    )
-    if(beemOK){
-      est <- beem2param(res)
-      pep.ibd=getPep(est$b.est)
-    }else{
-      pep.ibd=NA
-    }
-    edgeNum=NA
-    numNeg=NA
-  }else{
-    ibdNetwork=buildNetwork(ibdMatrix,method=method,lineages=ibd_lineages[1:nrow(ibdMatrix),],initEdgeNum = N*(N-1)/4, legend=FALSE)
-    edgeNum=length(E(ibdNetwork))
-    numNeg=length(which(E(ibdNetwork)$color=="red"))
-    numPos=edgeNum-numNeg
-    pep.ibd=numPos/(edgeNum/100)
-  }
-  print(paste("IBD network has PEP",pep.ibd,",",numNeg," negative edges"," and ",edgeNum,"total edges"))
-  ibd.edgenum=c(ibd.edgenum,edgeNum)
-  ibd.pep=c(ibd.pep,pep.ibd)  
+  print("IBD network inference")
+  res.ibd=buildNetworkWrapper(matrix=ibdMatrix,method=method,lineages=ibd_lineages[1:nrow(ibdMatrix),])
+  ibd.edgenum=c(ibd.edgenum,res.ibd$edgeNum)
+  ibd.pep=c(ibd.pep,res.ibd$pep)
   
 } # end rounds 
 
@@ -340,6 +340,7 @@ print(healthy.pep)
 print("PEP in IBD networks:")
 print(ibd.pep)
 
+# plot results
 if(rounds > 1){
   # PEP difference
   box.df <- data.frame(
@@ -417,29 +418,8 @@ if(rounds > 1){
     theme_minimal()
   plot(gout)
   
-  # diagnostic plots for data properties
-  p.val <- wilcox.test(na.omit(healthy.betadiv),na.omit(ibd.betadiv))$p.value 
-  box.df <- data.frame(
-    BC = c(healthy.betadiv, ibd.betadiv),
-    Group = factor(c(rep("Healthy", length(healthy.betadiv)),
-                     rep("IBD", length(ibd.betadiv))),
-                   levels = c("Healthy", "IBD"))
-  )
-  g.bc<-ggplot(box.df, aes(x = Group, y = BC, fill = Group)) +
-    geom_violin(alpha = 0.4, trim = FALSE) +
-    geom_jitter(aes(color = Group), width = 0.15, size = 1.5, alpha = 0.6) +
-    scale_fill_manual(values = c("Healthy" = "#0078B9", "IBD" = "#EA0017")) +
-    scale_color_manual(values = c("Healthy" = "#0078B9", "IBD" = "#EA0017")) +
-    annotate("text",
-             x = 1.5, y = max(box.df$BC, na.rm = TRUE),
-             label = paste0("p = ", formatC(p.val, format = "e", digits = 1)),
-             size = 4, vjust = -0.5) +
-    labs(title = "Beta diversity in simulated data",
-         y = "Mean Bray Curtis", x = NULL) +
-    theme_minimal() +
-    theme(legend.position = "none")
-  plot(g.bc)
   
+  # diagnostic plots for data properties
   p.val <- wilcox.test(na.omit(healthy.sheldon),na.omit(ibd.sheldon))$p.value 
   box.df <- data.frame(
     Sheldon = c(healthy.sheldon, ibd.sheldon),
@@ -461,6 +441,28 @@ if(rounds > 1){
     theme_minimal() +
     theme(legend.position = "none")
   plot(g.sheldon)
+  
+  p.val <- wilcox.test(na.omit(healthy.betadiv),na.omit(ibd.betadiv))$p.value 
+  box.df <- data.frame(
+    BC = c(healthy.betadiv, ibd.betadiv),
+    Group = factor(c(rep("Healthy", length(healthy.betadiv)),
+                     rep("IBD", length(ibd.betadiv))),
+                   levels = c("Healthy", "IBD"))
+  )
+  g.bc<-ggplot(box.df, aes(x = Group, y = BC, fill = Group)) +
+    geom_violin(alpha = 0.4, trim = FALSE) +
+    geom_jitter(aes(color = Group), width = 0.15, size = 1.5, alpha = 0.6) +
+    scale_fill_manual(values = c("Healthy" = "#0078B9", "IBD" = "#EA0017")) +
+    scale_color_manual(values = c("Healthy" = "#0078B9", "IBD" = "#EA0017")) +
+    annotate("text",
+             x = 1.5, y = max(box.df$BC, na.rm = TRUE),
+             label = paste0("p = ", formatC(p.val, format = "e", digits = 1)),
+             size = 4, vjust = -0.5) +
+    labs(title = "Beta diversity in simulated data",
+         y = "Mean Bray Curtis", x = NULL) +
+    theme_minimal() +
+    theme(legend.position = "none")
+  plot(g.bc)
   
   # library(patchwork)
   # combined <- (g.pep + gout) / (g.sheldon + g.bc) 
