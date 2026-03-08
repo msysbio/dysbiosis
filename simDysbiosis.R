@@ -27,7 +27,7 @@ samples=50 # number of samples in healthy and IBD matrix
 pep=20 # pre-defined PEP in global interaction matrix; do not choose too high to avoid explosions in gLV simulations (20 or below)
 minocc=10 # only keep rows with at least the given number of non-zero values for network inference; applied after rarefaction and after evenness and beta diversity are computed; CoNet and BEEM require a prevalence filter: 5 for CoNet is enough, BEEM needs a much more stringent one, e.g. 20
 method="mb" # network inference method (beem, limits, mb, glasso, pearson/spearman/bray/kld and others, see details in buildNetwork in seqgroup), mb and glasso are provided by SpiecEasi
-rounds=10 # data generation rounds with different global interaction matrices
+rounds=20 # data generation rounds with different global interaction matrices
 testmode=FALSE # do not re-generate A 
 
 # Functions
